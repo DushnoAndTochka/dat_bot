@@ -1,6 +1,7 @@
 name: Bot deploy workflow
 
-on: [push]
+on: 
+  - push: [main]
 
 jobs:
   golangci:
