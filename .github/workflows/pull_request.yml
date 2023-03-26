@@ -1,0 +1,28 @@
+name: New pull request
+
+on: [pull_request]
+
+jobs:
+  tests:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-go@v4
+        with:
+          go-version: '1.20'
+          cache: false
+      - uses: actions/checkout@v3
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: v1.51
+  send_message:
+    runs-on: ubuntu-latest
+    needs: tests
+    steps:
+    - name: send message
+      uses: appleboy/telegram-action@master
+      with:
+        to: ${{ secrets.TELEGRAM_TO }}
+        token: ${{ secrets.TELEGRAM_TOKEN }}
+        message: ПР прошел проверки и готов к review ${{ github.server_url }}/${{ github.repository }}/pull/${{ github.event.number }}.
