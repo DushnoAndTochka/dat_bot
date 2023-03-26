@@ -1,0 +1,67 @@
+name: Bot deploy workflow
+
+on: [push]
+
+jobs:
+  golangci:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-go@v4
+        with:
+          go-version: '1.20'
+          cache: false
+      - uses: actions/checkout@v3
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: v1.51
+  build_and_push_to_docker_hub:
+    name: Push Docker image to Docker Hub
+    runs-on: ubuntu-latest
+    needs: golangci
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v2 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1 
+      - name: Login to Docker 
+        uses: docker/login-action@v1 
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build, tag, and push the image to Amazon ECR
+        id: build-image
+        env:
+          ENV_FILE: ${{ secrets.ENV_FILE }}
+        run: |
+          touch .env
+          echo $ENV_FILE >> .env
+          docker build -t dushno_and_tochka_bot .
+          docker tag dushno_and_tochka_bot ${{ secrets.DOCKER_USERNAME }}/dushno_and_tochka_bot
+          docker push ${{ secrets.DOCKER_USERNAME }}/dushno_and_tochka_bot 
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build_and_push_to_docker_hub
+    steps:
+    - name: executing remote ssh commands to deploy
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.HOST }}
+        username: ${{ secrets.USER }}
+        key: ${{ secrets.SSH_KEY }}
+        script: |
+          sudo docker pull ${{ secrets.DOCKER_USERNAME }}/dushno_and_tochka_bot:latest
+          sudo docker stop dushno_and_tochka_bot
+          sudo docker run --rm -d ${{ secrets.DOCKER_USERNAME }}/dushno_and_tochka_bot:latest
+  send_message:
+    runs-on: ubuntu-latest
+    needs: deploy
+    steps:
+    - name: send message
+      uses: appleboy/telegram-action@master
+      with:
+        to: ${{ secrets.TELEGRAM_TO }}
+        token: ${{ secrets.TELEGRAM_TOKEN }}
+        message: ${{ github.workflow }} успешно выполнен! 
