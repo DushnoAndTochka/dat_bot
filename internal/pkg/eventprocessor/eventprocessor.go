@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/artem-telnov/dushno_and_tochka_bot/internal/pkg/models"
 	"github.com/artem-telnov/dushno_and_tochka_bot/internal/pkg/problemsmodel"
 	"github.com/artem-telnov/dushno_and_tochka_bot/internal/pkg/proposesmodel"
 	"github.com/mymmrac/telego"
@@ -44,6 +45,9 @@ func ProcessNotSupportedComandsComand(bot *telego.Bot, update telego.Update) {
 
 func ProcessGetLinkFromReply(bot *telego.Bot, update telego.Update) {
 	answer := update.Message.Text
+	user := models.GetFromTg(&update)
+	storages.UserGetByTgID(user.TgID)
+
 	var leetcodeValidLink = regexp.MustCompile(`^https:\/\/leetcode.com\/problems\/[a-z\-]*\/?$`)
 
 	var message *telego.SendMessageParams
