@@ -1,11 +1,15 @@
 package main
 
 import (
+	"context"
+	"os"
+	"os/signal"
 	"time"
 
 	"github.com/artem-telnov/dushno_and_tochka_bot/internal/pkg/bot"
 	"github.com/artem-telnov/dushno_and_tochka_bot/internal/pkg/dbconnection"
 	"github.com/artem-telnov/dushno_and_tochka_bot/internal/pkg/log"
+	"github.com/artem-telnov/dushno_and_tochka_bot/internal/pkg/storages"
 	"github.com/joho/godotenv"
 )
 
@@ -17,7 +21,9 @@ func main() {
 	if err != nil {
 		logger.Fatal(err)
 	}
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 
+	storages.NewStorage(ctx)
 	dbconnection.GetPoolConnections()
 
 	logger.Info("All Rigth!")
@@ -28,5 +34,5 @@ func main() {
 		logger.Fatal(err)
 	}
 
-	bot.StartPolling()
+	bot.StartPolling(cancel)
 }

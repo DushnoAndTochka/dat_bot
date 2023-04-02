@@ -8,36 +8,54 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-type RegexForSourceProblem string
-
-const (
-	LeetCodeRegexProblemUrl RegexForSourceProblem = `^https:\/\/leetcode.com\/problems\/(?P<problem_name>[a-z\-]*)\/?$`
+var (
+	LeetCodeRegexProblemUrl = regexp.MustCompile(`^https:\/\/leetcode.com\/problems\/(?P<problem_name>[a-z\-]*)\/?$`)
 )
 
-type ProblemSourceFromSource string
+type problemSourceFromSource string
 
 const (
-	LeetCodeUrl ProblemSourceFromSource = "https://leetcode.com/problems/$1/"
+	LeetCodeUrl problemSourceFromSource = "https://leetcode.com/problems/$1/"
 )
 
-type ProblemSource string
+type problemSource string
 
 const (
-	LeetCodeSource ProblemSource = "leetcode"
+	LeetCodeSource problemSource = "leetcode"
 )
 
-var ProblemSources = map[ProblemSource]RegexForSourceProblem{
+var ProblemSources = map[problemSource]*regexp.Regexp{
 	LeetCodeSource: LeetCodeRegexProblemUrl,
 }
 
-var ProblemUrlFormSources = map[ProblemSource]ProblemSourceFromSource{
+var ProblemUrlFormSources = map[problemSource]problemSourceFromSource{
 	LeetCodeSource: LeetCodeUrl,
 }
+
+type ErrorProblem struct {
+	Err        error
+	ErrMessage string
+}
+
+var (
+	NotSupportedURL *ErrorProblem = &ErrorProblem{
+		Err:        fmt.Errorf("notSupported"),
+		ErrMessage: "Данный URL не поддерживается",
+	}
+)
+
+type problemStatus string
+
+const (
+	CloseStatus = "Close"
+	OpenStatus  = "Open"
+)
 
 type Problem struct {
 	ID     uuid.UUID
 	Name   string
-	Source ProblemSource
+	Source problemSource
+	Status problemStatus
 }
 
 func NewProblemFromUrl(url string) (*Problem, error) {
@@ -45,35 +63,37 @@ func NewProblemFromUrl(url string) (*Problem, error) {
 	var problemName string
 
 	for problemSource, regex := range ProblemSources {
-		re := regexp.MustCompile(string(regex))
-		matches := re.FindStringSubmatch(url)
+		matches := regex.FindStringSubmatch(url)
 		if len(matches) == 0 {
-			err = fmt.Errorf("ProblemModels: Cant parse url.")
+			err = NotSupportedURL.Err
 			continue
 		}
-		problemNameIndex := re.SubexpIndex("problem_name")
+		problemNameIndex := regex.SubexpIndex("problem_name")
 		problemName = matches[problemNameIndex]
 		problem := &Problem{
 			Name:   problemName,
 			Source: problemSource,
+			Status: OpenStatus,
 		}
 		return problem, nil
 	}
 	return nil, err
 }
 
-func (u *Problem) ScanProblemRow(rows pgx.Row) error {
+func (p *Problem) ScanProblemRow(rows pgx.Row) error {
 	return rows.Scan(
-		&u.ID,
-		&u.Name,
-		&u.Source,
+		&p.ID,
+		&p.Name,
+		&p.Source,
+		&p.Status,
 	)
 }
 
-func (u *Problem) ScanProblemRows(rows pgx.Rows) error {
+func (p *Problem) ScanProblemRows(rows pgx.Rows) error {
 	return rows.Scan(
-		&u.ID,
-		&u.Name,
-		&u.Source,
+		&p.ID,
+		&p.Name,
+		&p.Source,
+		&p.Status,
 	)
 }

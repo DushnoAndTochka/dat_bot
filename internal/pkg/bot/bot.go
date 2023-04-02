@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"context"
 	"errors"
 	"os"
 	"os/signal"
@@ -48,7 +49,7 @@ type Bot struct {
 	dbConnection *pgxpool.Pool
 }
 
-func (b *Bot) StartPolling() {
+func (b *Bot) StartPolling(cancel context.CancelFunc) {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	logger := log.GetLogger()
@@ -65,6 +66,7 @@ func (b *Bot) StartPolling() {
 		b.bot.StopLongPolling()
 		bh.Stop()
 		logger.Info("Long polling stoped")
+		cancel()
 
 		done <- struct{}{}
 	}()

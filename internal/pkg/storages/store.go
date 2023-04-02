@@ -1,6 +1,7 @@
 package storages
 
 import (
+	"context"
 	"sync"
 
 	"github.com/artem-telnov/dushno_and_tochka_bot/internal/pkg/dbconnection"
@@ -14,9 +15,10 @@ var storage *Store
 type Store struct {
 	conn   *pgxpool.Pool
 	logger *zap.SugaredLogger
+	ctx    context.Context
 }
 
-func GetStorage() *Store {
+func NewStorage(ctx context.Context) *Store {
 	var once sync.Once
 	once.Do(func() {
 		logger := log.GetLogger()
@@ -24,8 +26,13 @@ func GetStorage() *Store {
 		storage = &Store{
 			logger: logger,
 			conn:   conn,
+			ctx:    ctx,
 		}
 	})
 
+	return storage
+}
+
+func GetStorage() *Store {
 	return storage
 }

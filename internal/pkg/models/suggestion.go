@@ -14,6 +14,13 @@ type Suggestion struct {
 	ProblemID uuid.UUID
 }
 
+func NewSuggestion(user *User, problem *Problem) *Suggestion {
+	return &Suggestion{
+		UserID:    user.ID,
+		ProblemID: problem.ID,
+	}
+}
+
 func (s *Suggestion) ScanRow(row pgx.Row) error {
 	return row.Scan(
 		&s.ID,

@@ -1,13 +1,16 @@
 package eventprocessor
 
 import (
+	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 
+	"github.com/artem-telnov/dushno_and_tochka_bot/internal/pkg/log"
 	"github.com/artem-telnov/dushno_and_tochka_bot/internal/pkg/models"
 	"github.com/artem-telnov/dushno_and_tochka_bot/internal/pkg/problemsmodel"
 	"github.com/artem-telnov/dushno_and_tochka_bot/internal/pkg/proposesmodel"
+	"github.com/artem-telnov/dushno_and_tochka_bot/internal/pkg/storages"
+	"github.com/google/uuid"
 	"github.com/mymmrac/telego"
 	tu "github.com/mymmrac/telego/telegoutil"
 )
@@ -44,33 +47,68 @@ func ProcessNotSupportedComandsComand(bot *telego.Bot, update telego.Update) {
 }
 
 func ProcessGetLinkFromReply(bot *telego.Bot, update telego.Update) {
+	logger := log.GetLogger()
 	answer := update.Message.Text
 	user := models.GetFromTg(&update)
-	storages.UserGetByTgID(user.TgID)
+	storage := storages.GetStorage()
+	err := storage.UserGetByTgID(user)
 
-	var leetcodeValidLink = regexp.MustCompile(`^https:\/\/leetcode.com\/problems\/[a-z\-]*\/?$`)
+	if err != nil {
+		logger.Errorf("store.UserGetByID: %v", err)
+		return
+	}
 
-	var message *telego.SendMessageParams
-	if leetcodeValidLink.MatchString(answer) {
-		problem, err := problemsmodel.GetByUrl(answer)
-		if err != nil {
-			sendErrorMessage(bot, &update, err)
+	if user.ID == uuid.Nil {
+		if err = storage.UserCreate(user); err != nil {
+			logger.Error(err)
 			return
 		}
-		propose := proposesmodel.NewPropose(problem, update.Message.Chat.ID)
-		err = propose.Create()
-		if err != nil {
-			sendErrorMessage(bot, &update, err)
+	}
+
+	problem, err := models.NewProblemFromUrl(answer)
+
+	var message *telego.SendMessageParams
+
+	switch {
+	case errors.Is(models.NotSupportedURL.Err, err):
+		message = tu.Message(
+			tu.ID(update.Message.Chat.ID),
+			"Представленный вами URL не принадлежит LeetCode или указывает не на проблему.\nПример корректной ссылки: https://leetcode.com/problems/two-sum.",
+		)
+	}
+
+	if err = storage.ProblemGet(problem); err != nil {
+		logger.Error(err)
+		return
+	}
+
+	if problem.ID == uuid.Nil {
+		if err = storage.ProblemCreate(problem); err != nil {
+			logger.Error(err)
+			return
+		}
+	}
+
+	suggection := models.NewSuggestion(user, problem)
+
+	if err = storage.SuggestionGet(suggection); err != nil {
+		logger.Error(err)
+		return
+	}
+
+	if suggection.ID != uuid.Nil {
+		message = tu.Message(
+			tu.ID(update.Message.Chat.ID),
+			"Вы уже предлагали данную задачу.",
+		)
+	} else {
+		if err = storage.SuggestionCreate(suggection); err != nil {
+			logger.Error(err)
 			return
 		}
 		message = tu.Message(
 			tu.ID(update.Message.Chat.ID),
 			"Спасибо",
-		)
-	} else {
-		message = tu.Message(
-			tu.ID(update.Message.Chat.ID),
-			"Представленный вами URL не принадлежит LeetCode или указывает не на проблему.\nПример корректной ссылки: https://leetcode.com/problems/two-sum.",
 		)
 	}
 
