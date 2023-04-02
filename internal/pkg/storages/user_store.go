@@ -24,7 +24,7 @@ func (s *Store) UserGetByTgID(u *models.User) error {
 }
 
 func (s *Store) UserCreate(u *models.User) error {
-	_, err := s.conn.Exec(s.ctx, insertUser, u.TgID, u.Name)
+	_, err := s.conn.Exec(s.ctx, insertUser, u.Name, u.TgID)
 	if err != nil {
 		return fmt.Errorf("conn.Exec: %w", err)
 	}

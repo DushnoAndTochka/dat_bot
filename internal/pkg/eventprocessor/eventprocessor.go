@@ -9,6 +9,7 @@ import (
 	"github.com/artem-telnov/dushno_and_tochka_bot/internal/pkg/models"
 	"github.com/artem-telnov/dushno_and_tochka_bot/internal/pkg/storages"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/mymmrac/telego"
 	tu "github.com/mymmrac/telego/telegoutil"
 )
@@ -51,20 +52,18 @@ func ProcessGetLinkFromReply(bot *telego.Bot, update telego.Update) {
 	storage := storages.GetStorage()
 	err := storage.UserGetByTgID(user)
 
-	if err != nil {
-		logger.Errorf("store.UserGetByID: %v", err)
-		sendErrorMessage(bot, &update, err)
-
-		return
-	}
-
-	if user.ID == uuid.Nil {
+	if errors.Is(err, pgx.ErrNoRows) {
 		if err = storage.UserCreate(user); err != nil {
 			logger.Error(err)
 			sendErrorMessage(bot, &update, err)
 
 			return
 		}
+	} else if err != nil {
+		logger.Errorf("store.UserGetByID: %v", err)
+		sendErrorMessage(bot, &update, err)
+
+		return
 	}
 
 	problem, err := models.NewProblemFromUrl(answer)

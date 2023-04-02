@@ -1,0 +1,28 @@
+version: '3.8'
+services:
+  db:
+    image: postgres:14.7-alpine
+    restart: always
+    ports:
+      - 5432:5432
+    volumes:
+      - database_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: project
+      POSTGRES_USER: project
+      POSTGRES_PASSWORD: project
+    env_file:
+      - ./.env      
+
+  tg_bot:
+    build: .
+    restart: always
+    volumes:
+      - log_volumes:/var/log/
+    depends_on:
+      - db
+    env_file:
+      - ./.env
+volumes:
+  log_volumes:
+  database_data:

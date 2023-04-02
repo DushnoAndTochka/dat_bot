@@ -21,10 +21,15 @@ func main() {
 	if err != nil {
 		logger.Fatal(err)
 	}
+
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 
 	storages.NewStorage(ctx)
-	dbconnection.GetPoolConnections()
+
+	pool := dbconnection.GetPoolConnections()
+	if pool == nil {
+		logger.Fatal("Pool is not init")
+	}
 
 	logger.Info("All Rigth!")
 

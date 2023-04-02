@@ -56,6 +56,7 @@ func (b *Bot) StartPolling(cancel context.CancelFunc) {
 	done := make(chan struct{}, 1)
 
 	updates, _ := b.bot.UpdatesViaLongPolling(nil)
+	dbpool := dbconnection.GetPoolConnections()
 
 	bh, _ := th.NewBotHandler(b.bot, updates)
 
@@ -65,6 +66,7 @@ func (b *Bot) StartPolling(cancel context.CancelFunc) {
 		logger.Info("Polling is stoping")
 		b.bot.StopLongPolling()
 		bh.Stop()
+
 		logger.Info("Long polling stoped")
 		cancel()
 
@@ -73,6 +75,7 @@ func (b *Bot) StartPolling(cancel context.CancelFunc) {
 
 	defer bh.Stop()
 	defer b.bot.StopLongPolling()
+	defer dbpool.Close()
 
 	bh.Use(
 		func(next th.Handler) th.Handler {

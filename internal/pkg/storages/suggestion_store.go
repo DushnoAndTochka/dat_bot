@@ -1,33 +1,36 @@
 package storages
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/artem-telnov/dushno_and_tochka_bot/internal/pkg/models"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 var selectSuggestion = `
 SELECT id, user_id, problem_id
 FROM suggestions
-WHERE name = $1 and source = $2;
+WHERE user_id = $1 and problem_id = $2;
 `
 
 var selectUserSuggestions = `
-SELECT suggestio.problems_id, 
+SELECT suggestions.problem_id, 
        problems.name
-FROM suggestion
-JOIN problems ON suggestio.problems_id = problems.id;
+FROM suggestions
+JOIN problems ON suggestions.problem_id = problems.id
+WHERE user_id = $1;
 `
 
 var selectTOPSuggestions = `
-SELECT suggestio.problems_id, 
-       count(suggestio.problems_id) as countSuggestions, 
+SELECT suggestions.problem_id, 
+       count(suggestions.problem_id) as countSuggestions, 
        problems.name
-FROM suggestion
-JOIN problems ON suggestio.problems_id = problems.id
+FROM suggestions
+JOIN problems ON suggestions.problem_id = problems.id
 WHERE problems.status = $1
-GROUP BY suggestio.problems_id, problems.name
+GROUP BY suggestions.problem_id, problems.name
 ORDER BY countSuggestions
 LIMIT 10;
 `
@@ -46,6 +49,10 @@ func (s *Store) SuggestionGet(suggestion *models.Suggestion) error {
 	row := s.conn.QueryRow(s.ctx, selectSuggestion, suggestion.UserID, suggestion.ProblemID)
 
 	err := suggestion.ScanRow(row)
+
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
 
 	return err
 }
