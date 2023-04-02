@@ -51,10 +51,12 @@ const (
 	OpenStatus  = "Open"
 )
 
+type ProblemName string
+
 type Problem struct {
 	ID     uuid.UUID
 	Name   string
-	Source problemSource
+	Source ProblemName
 	Status problemStatus
 }
 
@@ -72,7 +74,7 @@ func NewProblemFromUrl(url string) (*Problem, error) {
 		problemName = matches[problemNameIndex]
 		problem := &Problem{
 			Name:   problemName,
-			Source: problemSource,
+			Source: ProblemName(problemSource),
 			Status: OpenStatus,
 		}
 		return problem, nil
@@ -80,8 +82,8 @@ func NewProblemFromUrl(url string) (*Problem, error) {
 	return nil, err
 }
 
-func (p *Problem) ScanProblemRow(rows pgx.Row) error {
-	return rows.Scan(
+func (p *Problem) ScanProblemRow(row pgx.Row) error {
+	return row.Scan(
 		&p.ID,
 		&p.Name,
 		&p.Source,

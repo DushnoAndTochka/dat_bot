@@ -8,6 +8,8 @@ import (
 const SuggestionSelectValues = "id, user_id, problem_id"
 const SuggestionInsertValues = "user_id, problem_id"
 
+type CountSuggestions int
+
 type Suggestion struct {
 	ID        uuid.UUID
 	UserID    uuid.UUID
