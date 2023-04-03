@@ -9,7 +9,7 @@ services:
       - database_data:/var/lib/postgresql/data
     env_file:
       - .env
-  tg_bot:
+  dat_bot:
     build: .
     image: baradabacka/dushno_and_tochka_bot:latest
     restart: always

@@ -76,6 +76,7 @@ jobs:
           echo POSTGRES_PASSWORD="${{ secrets.POSTGRES_PASSWORD }}" >> .env
           echo DB_HOST=${{ secrets.DB_HOST }} >> .env
           echo DB_PORT=${{ secrets.DB_PORT }} >> .env
+          sudo docker-compose pull
           sudo docker-compose up -d
           GOOSE_DRIVER=postgres GOOSE_DBSTRING="user=${{ secrets.POSTGRES_USER }} dbname=${{ secrets.DB_NAME }} sslmode=disable host=${{ secrets.DB_HOST }} password=${{ secrets.POSTGRES_PASSWORD }}" goose -dir migrations up
           rm -rf migrations
