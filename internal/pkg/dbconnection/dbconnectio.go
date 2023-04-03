@@ -29,8 +29,6 @@ func newPoolConnections() {
 		dbName,
 	)
 
-	logger.Error(databaseURL)
-
 	dbpool, err := pgxpool.New(context.Background(), databaseURL)
 	if err != nil {
 		logger.Fatal("Unable to connect to database: %v\n", err)
