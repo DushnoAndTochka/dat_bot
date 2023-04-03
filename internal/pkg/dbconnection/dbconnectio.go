@@ -16,7 +16,7 @@ func newPoolConnections() {
 	logger := log.GetLogger()
 	dbUser := os.Getenv("POSTGRES_USER")
 	dbPass := os.Getenv("POSTGRES_PASSWORD")
-	dbName := os.Getenv("DB_NAME")
+	dbName := os.Getenv("POSTGRES_DB")
 	dbPort := os.Getenv("DB_PORT")
 	dbHost := os.Getenv("DB_HOST")
 
