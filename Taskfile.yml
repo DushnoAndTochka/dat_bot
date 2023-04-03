@@ -19,3 +19,7 @@ tasks:
     cmds:
       - golangci-lint run
     aliases: [lint]
+
+  migrations:
+    cmds:
+      - GOOSE_DRIVER=postgres GOOSE_DBSTRING="user=project dbname=project sslmode=disable host=127.0.0.1 password=project" goose -dir migrations up
