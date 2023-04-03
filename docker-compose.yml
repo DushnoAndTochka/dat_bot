@@ -17,8 +17,6 @@ services:
       - log_volumes:/var/log/
     depends_on:
       - db
-    environment:
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
     env_file:
       - .env
 volumes:
