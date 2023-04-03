@@ -22,6 +22,7 @@ CREATE TABLE problems
 CREATE INDEX ON problems (status);
 CREATE INDEX ON problems (name);
 
+-- # TODO почему-то срабатывает констрейн на уникальность поля. Это не дает создавать дополнительные связи...
 CREATE TABLE suggestions
 (
     id             UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

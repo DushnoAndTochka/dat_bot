@@ -17,10 +17,7 @@ func main() {
 	time.Local = time.UTC
 	logger := log.GetLogger()
 
-	err := godotenv.Load()
-	if err != nil {
-		logger.Fatal(err)
-	}
+	godotenv.Load()
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 

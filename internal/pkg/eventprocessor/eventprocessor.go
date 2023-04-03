@@ -59,6 +59,7 @@ func ProcessGetLinkFromReply(bot *telego.Bot, update telego.Update) {
 
 			return
 		}
+		user = models.GetFromTg(&update)
 	} else if err != nil {
 		logger.Errorf("store.UserGetByID: %v", err)
 		sendErrorMessage(bot, &update, err)
@@ -89,6 +90,12 @@ func ProcessGetLinkFromReply(bot *telego.Bot, update telego.Update) {
 
 	if problem.ID == uuid.Nil {
 		if err = storage.ProblemCreate(problem); err != nil {
+			logger.Error(err)
+			sendErrorMessage(bot, &update, err)
+
+			return
+		}
+		if err = storage.ProblemGet(problem); err != nil {
 			logger.Error(err)
 			sendErrorMessage(bot, &update, err)
 

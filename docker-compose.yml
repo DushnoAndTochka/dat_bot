@@ -7,22 +7,20 @@ services:
       - 5432:5432
     volumes:
       - database_data:/var/lib/postgresql/data
-    environment:
-      POSTGRES_DB: project
-      POSTGRES_USER: project
-      POSTGRES_PASSWORD: project
     env_file:
-      - ./.env      
-
+      - .env
   tg_bot:
     build: .
+    image: baradabacka/dushno_and_tochka_bot:latest
     restart: always
     volumes:
       - log_volumes:/var/log/
     depends_on:
       - db
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
     env_file:
-      - ./.env
+      - .env
 volumes:
   log_volumes:
   database_data:
