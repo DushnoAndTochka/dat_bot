@@ -2,19 +2,17 @@ package log
 
 import (
 	"os"
+	"sync"
 
-	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
 var commitID string
 
-func UserID(userID uuid.UUID) zap.Field {
-	return zap.String("user_id", userID.String())
-}
+var logger *zap.SugaredLogger = nil
 
-func NewLogger() *zap.SugaredLogger {
+func newLogger() {
 	logPath := os.Getenv("LOG_PATH")
 	if logPath == "" {
 		logPath = "/var/log/dushno_and_tochka.log"
@@ -51,5 +49,11 @@ func NewLogger() *zap.SugaredLogger {
 	if err != nil {
 		panic(err)
 	}
-	return l.Sugar().With(zap.String("commit_id", commitID))
+	logger = l.Sugar().With(zap.String("commit_id", commitID))
+}
+
+func GetLogger() *zap.SugaredLogger {
+	var once sync.Once
+	once.Do(newLogger)
+	return logger
 }
