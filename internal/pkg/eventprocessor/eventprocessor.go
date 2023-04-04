@@ -1,25 +1,32 @@
 package eventprocessor
 
 import (
-	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/artem-telnov/dushno_and_tochka_bot/internal/pkg/log"
 	"github.com/artem-telnov/dushno_and_tochka_bot/internal/pkg/models"
 	"github.com/artem-telnov/dushno_and_tochka_bot/internal/pkg/storages"
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/mymmrac/telego"
 	tu "github.com/mymmrac/telego/telegoutil"
 )
 
 func ProcessStartComand(bot *telego.Bot, update telego.Update) {
 
-	message := tu.Message(
-		tu.ID(update.Message.Chat.ID),
-		"Привет. Чем могут быть полезен ?",
-	)
+	storage := storages.GetStorage()
+	user := models.GetFromTg(&update)
+
+	var message *telego.SendMessageParams
+	if err := storage.UserGetOrCreate(user); err != nil {
+		message = tu.Message(
+			tu.ID(update.Message.Chat.ID),
+			"Привет. Чем могут быть полезен ?",
+		)
+	} else {
+		message = tu.Message(
+			tu.ID(update.Message.Chat.ID),
+			fmt.Sprintf("Привет, %s. Чем могут быть полезен ?", user.Name),
+		)
+	}
 
 	_, _ = bot.SendMessage(message)
 }
@@ -28,9 +35,12 @@ func ProcessHelpComand(bot *telego.Bot, update telego.Update) {
 
 	message := tu.Message(
 		tu.ID(update.Message.Chat.ID),
-		`На данный момент я умею не так много. \n
-		 - Через меня можно предложить задачу на разбор\n
-		 - Посмотреть топ 5 желаемых задач от подписчиков.`,
+		`На данный момент я умею не так много.
+		 - Через меня можно предложить задачу на разбор. /suggest_problem
+		 - Посмотреть топ 10 желаемых задач от подписчиков. /show_top_suggestions
+		 - Посмотреть какие задачи я уже предлагал. /show_my_suggestion
+		 
+		 На этом пока что все.`,
 	)
 
 	_, _ = bot.SendMessage(message)
@@ -48,22 +58,13 @@ func ProcessNotSupportedComandsComand(bot *telego.Bot, update telego.Update) {
 func ProcessGetLinkFromReply(bot *telego.Bot, update telego.Update) {
 	logger := log.GetLogger()
 	answer := update.Message.Text
-	user := models.GetFromTg(&update)
 	storage := storages.GetStorage()
-	err := storage.UserGetByTgID(user)
 
-	if errors.Is(err, pgx.ErrNoRows) {
-		if err = storage.UserCreate(user); err != nil {
-			logger.Error(err)
-			sendErrorMessage(bot, &update, err)
+	user := models.GetFromTg(&update)
 
-			return
-		}
-		user = models.GetFromTg(&update)
-	} else if err != nil {
-		logger.Errorf("store.UserGetByID: %v", err)
+	if err := storage.UserGetOrCreate(user); err != nil {
+		logger.Debug("ProcessGetLinkFromReply: UserGetOrCreate failed: %w", err)
 		sendErrorMessage(bot, &update, err)
-
 		return
 	}
 
@@ -71,71 +72,36 @@ func ProcessGetLinkFromReply(bot *telego.Bot, update telego.Update) {
 
 	var message *telego.SendMessageParams
 
-	switch {
-	case errors.Is(models.NotSupportedURL.Err, err):
-		message = tu.Message(
-			tu.ID(update.Message.Chat.ID),
-			"Представленный вами URL не принадлежит LeetCode или указывает не на проблему.\nПример корректной ссылки: https://leetcode.com/problems/two-sum.",
-		)
-		_, _ = bot.SendMessage(message)
-		return
-	}
-
-	if err = storage.ProblemGet(problem); err != nil {
-		logger.Error(err)
+	if err != nil {
 		sendErrorMessage(bot, &update, err)
-
 		return
 	}
 
-	if problem.ID == uuid.Nil {
-		if err = storage.ProblemCreate(problem); err != nil {
-			logger.Error(err)
-			sendErrorMessage(bot, &update, err)
-
-			return
-		}
-		if err = storage.ProblemGet(problem); err != nil {
-			logger.Error(err)
-			sendErrorMessage(bot, &update, err)
-
-			return
-		}
+	if err := storage.ProblemGetOrCreate(problem); err != nil {
+		logger.Debug("ProcessGetLinkFromReply: ProblemGetOrCreate failed: %w", err)
+		sendErrorMessage(bot, &update, err)
+		return
 	}
 
 	suggection := models.NewSuggestion(user, problem)
 
-	if err = storage.SuggestionGet(suggection); err != nil {
-		logger.Error(err)
+	if err = storage.SuggestionCheckOrCreate(suggection); err != nil {
+		logger.Debug("ProcessGetLinkFromReply: SuggestionCheckOrCreate failed: %w", err)
 		sendErrorMessage(bot, &update, err)
-
 		return
 	}
 
-	if suggection.ID != uuid.Nil {
-		message = tu.Message(
-			tu.ID(update.Message.Chat.ID),
-			"Вы уже предлагали данную задачу.",
-		)
-	} else {
-		if err = storage.SuggestionCreate(suggection); err != nil {
-			logger.Error(err)
-			sendErrorMessage(bot, &update, err)
-
-			return
-		}
-		message = tu.Message(
-			tu.ID(update.Message.Chat.ID),
-			"Спасибо",
-		)
-	}
-
+	message = tu.Message(
+		tu.ID(update.Message.Chat.ID),
+		"Спасибо",
+	)
 	_, _ = bot.SendMessage(message)
 }
 
 func ProcessShowAllProposeProblems(bot *telego.Bot, update telego.Update) {
 
-	var message *telego.SendMessageParams
+	var message string
+	var botMessage *telego.SendMessageParams
 
 	logger := log.GetLogger()
 	storage := storages.GetStorage()
@@ -148,45 +114,46 @@ func ProcessShowAllProposeProblems(bot *telego.Bot, update telego.Update) {
 		return
 	}
 
-	if suggstions != nil {
-		answerString := make([]string, len(suggstions)+1)
-		answerString = append(answerString, "ТОП предложениями являются:\n")
-		for k, v := range suggstions {
-			answerString = append(answerString, fmt.Sprintf("Задача: '%s' была предложена %v раз.\n", string(*k), int(*v)))
-		}
-		message = tu.Message(
-			tu.ID(update.Message.Chat.ID),
-			strings.Join(answerString, "\n"),
-		)
+	if len(suggstions) == 0 {
+		message =
+			`
+			На данный момент нет предложенных задач. Вы можете быть первым.
+			/suggest_problem
+			`
+		botMessage = tu.Message(tu.ID(update.Message.Chat.ID), message)
 	} else {
-		message = tu.Message(
-			tu.ID(update.Message.Chat.ID),
-			"На этой неделе еще никто не успел предложить задачу. Вы можете быть первым.",
-		)
+		var entityMessages []tu.MessageEntityCollection
+		entityMessages = append(entityMessages, tu.Entity("ТОП предложениями являются:\n"))
+
+		var problemUrl string
+
+		for problem, count := range suggstions {
+			problemUrl = problem.GetUrl()
+			entityMessages = append(entityMessages, tu.Entity("\n- Задача "))
+			if problemUrl != "" {
+				entityMessages = append(entityMessages, tu.Entity(string(problem.Name)).TextLink(problemUrl))
+			} else {
+				entityMessages = append(entityMessages, tu.Entity(string(problem.Name)))
+			}
+			entityMessages = append(entityMessages, tu.Entity(fmt.Sprintf(" была предложена %v раз.\n", int(*count))))
+		}
+		botMessage = tu.MessageWithEntities(tu.ID(update.Message.Chat.ID), entityMessages...)
+
 	}
 
-	_, _ = bot.SendMessage(message)
+	_, _ = bot.SendMessage(botMessage)
 }
 
 func ProcessShowMyProposeProblem(bot *telego.Bot, update telego.Update) {
-	var message *telego.SendMessageParams
+	var botMessage *telego.SendMessageParams
 
 	logger := log.GetLogger()
 	user := models.GetFromTg(&update)
 	storage := storages.GetStorage()
-	err := storage.UserGetByTgID(user)
 
-	if err != nil {
-		logger.Errorf("store.UserGetByID: %v", err)
+	if err := storage.UserGetOrCreate(user); err != nil {
 		sendErrorMessage(bot, &update, err)
 		return
-	}
-
-	if user.ID == uuid.Nil {
-		if err = storage.UserCreate(user); err != nil {
-			logger.Error(err)
-			return
-		}
 	}
 
 	userSuggestions, err := storage.GetUserSuggestion(user)
@@ -198,28 +165,33 @@ func ProcessShowMyProposeProblem(bot *telego.Bot, update telego.Update) {
 	}
 
 	if userSuggestions != nil {
-		answerString := make([]string, len(userSuggestions)+1)
-		answerString = append(answerString, "Задачи, которые вы предложили и они еще не были разобраны:\n")
-		var problemName *models.ProblemName
+		var entityMessages []tu.MessageEntityCollection
+		entityMessages = append(entityMessages, tu.Entity("Задачи, которые вы предложили и они еще не были разобраны:\n"))
+
+		var problem *models.Problem
+		var problemUrl string
 
 		for i := range userSuggestions {
-			problemName = userSuggestions[i]
-
-			answerString = append(answerString, string(*problemName))
+			problem = userSuggestions[i]
+			problemUrl = problem.GetUrl()
+			entityMessages = append(entityMessages, tu.Entity("\n- "))
+			if problemUrl != "" {
+				entityMessages = append(entityMessages, tu.Entity(string(problem.Name)).TextLink(problemUrl))
+			} else {
+				entityMessages = append(entityMessages, tu.Entity(string(problem.Name)))
+			}
+			entityMessages = append(entityMessages, tu.Entity("\n"))
 		}
-		message = tu.Message(
-			tu.ID(update.Message.Chat.ID),
-			strings.Join(answerString, "\n"),
-		)
+		botMessage = tu.MessageWithEntities(tu.ID(update.Message.Chat.ID), entityMessages...)
 	} else {
-		message = tu.Message(
-			tu.ID(update.Message.Chat.ID),
-			`Вы не предложили никакой задачи или все предложенные задачи уже разобраны.\n
-			Самое время предложить что-то новое.\n/propose_problem`,
-		)
+		message := `
+		Вы не предложили никакой задачи или все предложенные задачи уже разобраны.
+		Самое время предложить что-то новое.
+		/suggest_problem`
+		botMessage = tu.Message(tu.ID(update.Message.Chat.ID), message)
 	}
 
-	_, _ = bot.SendMessage(message)
+	_, _ = bot.SendMessage(botMessage)
 }
 
 func ProcessProposeProblemFromMessage(bot *telego.Bot, update telego.Update) {
@@ -231,10 +203,18 @@ func ProcessProposeProblemFromMessage(bot *telego.Bot, update telego.Update) {
 	_, _ = bot.SendMessage(message)
 }
 
-func sendErrorMessage(bot *telego.Bot, update *telego.Update, err error) {
+func sendErrorMessage(bot *telego.Bot, update *telego.Update, err models.ModelError) {
+	logger := log.GetLogger()
+	logger.Error(err)
+	msg, ok := models.ModelErrors[err]
+
+	if !ok {
+		msg = "Почему-то не получилось посмотреть информацию... Попробуйте позже."
+	}
+
 	message := tu.Message(
 		tu.ID(update.Message.Chat.ID),
-		"Почему-то не получилось посмотреть информацию... Попробуйте позже.",
+		msg,
 	)
 	_, _ = bot.SendMessage(message)
 }
