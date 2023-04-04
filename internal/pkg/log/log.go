@@ -8,8 +8,6 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-var commitID string
-
 var logger *zap.SugaredLogger = nil
 
 func newLogger() {
@@ -41,15 +39,15 @@ func newLogger() {
 			EncodeDuration: zapcore.SecondsDurationEncoder,
 			EncodeCaller:   zapcore.ShortCallerEncoder,
 		},
-		OutputPaths:      []string{logPath},
-		ErrorOutputPaths: []string{logPath},
+		OutputPaths:      []string{logPath, "stderr"},
+		ErrorOutputPaths: []string{logPath, "stderr"},
 	}
 
 	l, err := zapConfig.Build()
 	if err != nil {
 		panic(err)
 	}
-	logger = l.Sugar().With(zap.String("commit_id", commitID))
+	logger = l.Sugar()
 }
 
 func GetLogger() *zap.SugaredLogger {

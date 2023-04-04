@@ -15,7 +15,7 @@ var (
 type problemSourceFromSource string
 
 const (
-	LeetCodeUrl problemSourceFromSource = "https://leetcode.com/problems/$1/"
+	LeetCodeUrl problemSourceFromSource = "https://leetcode.com/problems/%s/"
 )
 
 type problemSource string
@@ -32,32 +32,50 @@ var ProblemUrlFormSources = map[problemSource]problemSourceFromSource{
 	LeetCodeSource: LeetCodeUrl,
 }
 
-type ErrorProblem struct {
-	Err        error
-	ErrMessage string
-}
-
-var (
-	NotSupportedURL *ErrorProblem = &ErrorProblem{
-		Err:        fmt.Errorf("notSupported"),
-		ErrMessage: "Данный URL не поддерживается",
-	}
-)
-
 type problemStatus string
 
 const (
-	CloseStatus = "Close"
-	OpenStatus  = "Open"
+	CloseStatus problemStatus = "Close"
+	OpenStatus  problemStatus = "Open"
 )
+
+var EnableStatuses = []problemStatus{OpenStatus, CloseStatus}
 
 type ProblemName string
 
 type Problem struct {
 	ID     uuid.UUID
-	Name   string
-	Source ProblemName
+	Name   ProblemName
+	Source problemSource
 	Status problemStatus
+}
+
+func NewProblem(id uuid.UUID, name string, source string, status string) (*Problem, error) {
+	pSource := problemSource(source)
+	_, ok := ProblemSources[pSource]
+	if !ok {
+		return nil, fmt.Errorf("NotCorrectSource")
+	}
+
+	pStatus := problemStatus(status)
+	ok = false
+	for _, enambleStatus := range EnableStatuses {
+		if pStatus == enambleStatus {
+			ok = true
+			break
+		}
+	}
+
+	if !ok {
+		return nil, fmt.Errorf("NotCorrectStatus")
+	}
+
+	return &Problem{
+		ID:     id,
+		Name:   ProblemName(name),
+		Source: pSource,
+		Status: pStatus,
+	}, nil
 }
 
 func NewProblemFromUrl(url string) (*Problem, error) {
@@ -67,19 +85,28 @@ func NewProblemFromUrl(url string) (*Problem, error) {
 	for problemSource, regex := range ProblemSources {
 		matches := regex.FindStringSubmatch(url)
 		if len(matches) == 0 {
-			err = NotSupportedURL.Err
+			err = ErrNotSupportedURL
 			continue
 		}
 		problemNameIndex := regex.SubexpIndex("problem_name")
 		problemName = matches[problemNameIndex]
 		problem := &Problem{
-			Name:   problemName,
-			Source: ProblemName(problemSource),
+			Name:   ProblemName(problemName),
+			Source: problemSource,
 			Status: OpenStatus,
 		}
 		return problem, nil
 	}
 	return nil, err
+}
+
+func (p *Problem) GetUrl() string {
+	source, ok := ProblemUrlFormSources[problemSource(p.Source)]
+	if ok {
+		return fmt.Sprintf(string(source), string(p.Name))
+	} else {
+		return ""
+	}
 }
 
 func (p *Problem) ScanProblemRow(row pgx.Row) error {
