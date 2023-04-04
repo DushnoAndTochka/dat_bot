@@ -15,11 +15,6 @@ FROM problems
 WHERE name = $1 and source = $2;
 `
 
-var selectAllProblemsWithCurrentStatus = `
-SELECT id FROM problems
-WHERE status = $1
-`
-
 var insertProblem = `
 INSERT INTO problems (name, source, status) VALUES ($1, $2, $3);
 `
