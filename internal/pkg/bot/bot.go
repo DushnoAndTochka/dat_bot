@@ -94,9 +94,9 @@ func (b *Bot) StartPolling(cancel context.CancelFunc) {
 
 	bh.Handle(eventprocessor.ProcessStartComand, th.CommandEqual("start"))
 	bh.Handle(eventprocessor.ProcessHelpComand, th.CommandEqual("help"))
-	bh.Handle(eventprocessor.ProcessProposeProblemFromMessage, th.CommandEqual("propose_problem"))
-	bh.Handle(eventprocessor.ProcessShowAllProposeProblems, th.CommandEqual("show_top_propose"))
-	bh.Handle(eventprocessor.ProcessShowMyProposeProblem, th.CommandEqual("show_my_propose"))
+	bh.Handle(eventprocessor.ProcessProposeProblemFromMessage, th.CommandEqual("suggest_problem"))
+	bh.Handle(eventprocessor.ProcessShowAllProposeProblems, th.CommandEqual("show_top_suggestions"))
+	bh.Handle(eventprocessor.ProcessShowMyProposeProblem, th.CommandEqual("show_my_suggestion"))
 	bh.Handle(eventprocessor.ProcessProposeProblemFromMessage, th.TextEqual("Хочу предложить задачу"))
 	bh.Handle(eventprocessor.ProcessGetLinkFromReply, custompredicates.IsNewProposeTask)
 	bh.Handle(eventprocessor.ProcessNotSupportedComandsComand, th.AnyCommand())

@@ -6,7 +6,6 @@ import (
 
 	"github.com/artem-telnov/dushno_and_tochka_bot/internal/pkg/log"
 	"github.com/artem-telnov/dushno_and_tochka_bot/internal/pkg/models"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -16,25 +15,14 @@ FROM problems
 WHERE name = $1 and source = $2;
 `
 
-var selectAllProblemsWithCurrentStatus = `
-SELECT id FROM problems
-WHERE status = $1
-`
-
 var insertProblem = `
 INSERT INTO problems (name, source, status) VALUES ($1, $2, $3);
 `
 
 func (s *Store) ProblemGet(problem *models.Problem) error {
-	logger := log.GetLogger()
 	row := s.conn.QueryRow(s.ctx, selectProblem, problem.Name, problem.Source)
 
 	err := problem.ScanProblemRow(row)
-
-	if errors.Is(err, pgx.ErrNoRows) {
-		logger.Info("store.ProblemGet: Not Found problem name: %s, source: %s", problem.Name, problem.Source)
-		return nil
-	}
 
 	return err
 }
@@ -47,23 +35,18 @@ func (s *Store) ProblemCreate(problem *models.Problem) error {
 	return nil
 }
 
-func (s *Store) ProblemGetAllIDSOpen() ([]*uuid.UUID, error) {
-
-	var problemIDs []*uuid.UUID
-
-	rows, err := s.conn.Query(s.ctx, selectAllProblemsWithCurrentStatus, models.OpenStatus)
-
-	if err != nil {
-		return nil, fmt.Errorf("conn.Query: %w", err)
+func (s *Store) ProblemGetOrCreate(problem *models.Problem) error {
+	logger := log.GetLogger()
+	err := s.ProblemGet(problem)
+	if errors.Is(err, pgx.ErrNoRows) {
+		logger.Info("ProblemGetOrCreate: Problem is not found. Try to create new Problem")
+		if err := s.ProblemCreate(problem); err != nil {
+			logger.Error("ProblemGetOrCreate: CreateProblem is failed: %w", err)
+			return err
+		}
+		logger.Info("ProblemGetOrCreate: CreateProblem is succeeded.")
+		err = s.ProblemGet(problem)
 	}
 
-	defer rows.Close()
-
-	for rows.Next() {
-		var id *uuid.UUID
-		err = rows.Scan(&id)
-		problemIDs = append(problemIDs, (*uuid.UUID)(id))
-	}
-
-	return problemIDs, err
+	return err
 }

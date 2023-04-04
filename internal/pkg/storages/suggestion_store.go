@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/artem-telnov/dushno_and_tochka_bot/internal/pkg/log"
 	"github.com/artem-telnov/dushno_and_tochka_bot/internal/pkg/models"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -17,7 +18,9 @@ WHERE user_id = $1 and problem_id = $2;
 
 var selectUserSuggestions = `
 SELECT suggestions.problem_id, 
-       problems.name
+       problems.name,
+	   problems.source,
+	   problems.status
 FROM suggestions
 JOIN problems ON suggestions.problem_id = problems.id
 WHERE user_id = $1;
@@ -26,11 +29,12 @@ WHERE user_id = $1;
 var selectTOPSuggestions = `
 SELECT suggestions.problem_id, 
        count(suggestions.problem_id) as countSuggestions, 
-       problems.name
+       problems.name,
+	   problems.source
 FROM suggestions
 JOIN problems ON suggestions.problem_id = problems.id
 WHERE problems.status = $1
-GROUP BY suggestions.problem_id, problems.name
+GROUP BY suggestions.problem_id, problems.name, problems.source
 ORDER BY countSuggestions
 LIMIT 10;
 `
@@ -50,10 +54,6 @@ func (s *Store) SuggestionGet(suggestion *models.Suggestion) error {
 
 	err := suggestion.ScanRow(row)
 
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil
-	}
-
 	return err
 }
 
@@ -65,6 +65,25 @@ func (s *Store) SuggestionCreate(suggestion *models.Suggestion) error {
 	return nil
 }
 
+func (s *Store) SuggestionCheckOrCreate(suggestion *models.Suggestion) error {
+	logger := log.GetLogger()
+	err := s.SuggestionGet(suggestion)
+	if errors.Is(err, pgx.ErrNoRows) {
+		logger.Info("SuggestionCheckOrCreate: Try to create new suggestion.")
+		if err := s.SuggestionCreate(suggestion); err != nil {
+			logger.Error("SuggestionCheckOrCreate: Create failed: %w.", err)
+			return err
+		}
+		logger.Info("SuggestionCheckOrCreate: SuggestionCreate is succeeded.")
+		err = s.SuggestionGet(suggestion)
+	} else if suggestion.ID != uuid.Nil {
+		logger.Info("SuggestionCheckOrCreate: Is not uniq suggestion.")
+		return models.ErrNotUniqSuggestion
+	}
+
+	return err
+}
+
 func (s *Store) SuggestionUpdate(suggestion *models.Suggestion) error {
 	_, err := s.conn.Exec(s.ctx, updateSuggestion, suggestion.UserID, suggestion.ProblemID)
 	if err != nil {
@@ -73,44 +92,58 @@ func (s *Store) SuggestionUpdate(suggestion *models.Suggestion) error {
 	return nil
 }
 
-func (s *Store) GetTopSuggestions() (map[*models.ProblemName]*models.CountSuggestions, error) {
-	rows, err := s.conn.Query(s.ctx, selectTOPSuggestions, models.OpenStatus)
+func (s *Store) GetTopSuggestions() (map[*models.Problem]*models.CountSuggestions, error) {
+	logger := log.GetLogger()
+	problemStatus := models.OpenStatus
+	rows, err := s.conn.Query(s.ctx, selectTOPSuggestions, problemStatus)
 
 	if err != nil {
 		return nil, err
 	}
 
-	topSuggestions := make(map[*models.ProblemName]*models.CountSuggestions)
+	topSuggestions := make(map[*models.Problem]*models.CountSuggestions)
+
+	var problemID *uuid.UUID
+	var problemName string
+	var problemSource string
+	var problem *models.Problem
 
 	for rows.Next() {
-		var problemID *uuid.UUID
-		var problemName *models.ProblemName
 		var countSuggestions *models.CountSuggestions
 
-		err = rows.Scan(&problemID, &countSuggestions, &problemName)
+		err = rows.Scan(&problemID, &countSuggestions, &problemName, &problemSource)
+		logger.Debug("GetTopSuggestions: Result: ", countSuggestions, " ", *problemID, " ", problemName, " ", problemSource, " ", string(problemStatus))
+		if err != nil {
+			logger.Debug("GetTopSuggestions: ", err)
+		}
+		problem, err = models.NewProblem(*problemID, problemName, problemSource, string(problemStatus))
 
-		topSuggestions[problemName] = countSuggestions
+		if err != nil {
+			logger.Debug("GetTopSuggestions: ", err)
+		}
+		topSuggestions[problem] = countSuggestions
 	}
 
 	return topSuggestions, err
 }
 
-func (s *Store) GetUserSuggestion(user *models.User) ([]*models.ProblemName, error) {
+func (s *Store) GetUserSuggestion(user *models.User) ([]*models.Problem, error) {
+
 	rows, err := s.conn.Query(s.ctx, selectUserSuggestions, user.ID)
 
+	var userSuggestions []*models.Problem
+
 	if err != nil {
-		return nil, err
+		return userSuggestions, err
 	}
 
-	var userSuggestions []*models.ProblemName
+	var problem *models.Problem
 
 	for rows.Next() {
-		var problemID *uuid.UUID
-		var problemName *models.ProblemName
+		problem = &models.Problem{}
+		err = problem.ScanProblemRows(rows)
 
-		err = rows.Scan(&problemID, &problemName)
-
-		userSuggestions = append(userSuggestions, problemName)
+		userSuggestions = append(userSuggestions, problem)
 	}
 
 	return userSuggestions, err
