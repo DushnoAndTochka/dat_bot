@@ -9,12 +9,14 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+// поиск проблем по имени и ресурсу.
 var selectProblem = `
 SELECT id, name, source, status
 FROM problems
 WHERE name = $1 and source = $2;
 `
 
+// Создание новой проблемы
 var insertProblem = `
 INSERT INTO problems (name, source, status) VALUES ($1, $2, $3);
 `
@@ -35,6 +37,7 @@ func (s *Store) ProblemCreate(problem *models.Problem) error {
 	return nil
 }
 
+// Метод пытается найти объект в бд. Если не получилось, то создает новый объект.
 func (s *Store) ProblemGetOrCreate(problem *models.Problem) error {
 	logger := log.GetLogger()
 	err := s.ProblemGet(problem)

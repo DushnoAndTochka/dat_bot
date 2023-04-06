@@ -4,20 +4,24 @@ import (
 	"fmt"
 	"regexp"
 
+	"github.com/artem-telnov/dushno_and_tochka_bot/internal/pkg/customerrors"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
+// регексы для матчинга урлов.
 var (
 	LeetCodeRegexProblemUrl = regexp.MustCompile(`^https:\/\/leetcode.com\/problems\/(?P<problem_name>[a-z\-]*)\/?$`)
 )
 
+// типы урлов, которые могут быть обработанны и из них будут получены названия проблем
 type problemSourceFromSource string
 
 const (
 	LeetCodeUrl problemSourceFromSource = "https://leetcode.com/problems/%s/"
 )
 
+// типа ресурсов проблем
 type problemSource string
 
 const (
@@ -32,6 +36,7 @@ var ProblemUrlFormSources = map[problemSource]problemSourceFromSource{
 	LeetCodeSource: LeetCodeUrl,
 }
 
+// допустимые статусы для проблем
 type problemStatus string
 
 const (
@@ -78,6 +83,7 @@ func NewProblem(id uuid.UUID, name string, source string, status string) (*Probl
 	}, nil
 }
 
+// инициализаци проблемы из представленного URL. Проверяет валидность урла.
 func NewProblemFromUrl(url string) (*Problem, error) {
 	var err error
 	var problemName string
@@ -85,7 +91,7 @@ func NewProblemFromUrl(url string) (*Problem, error) {
 	for problemSource, regex := range ProblemSources {
 		matches := regex.FindStringSubmatch(url)
 		if len(matches) == 0 {
-			err = ErrNotSupportedURL
+			err = customerrors.ErrNotSupportedURL
 			continue
 		}
 		problemNameIndex := regex.SubexpIndex("problem_name")
@@ -100,7 +106,7 @@ func NewProblemFromUrl(url string) (*Problem, error) {
 	return nil, err
 }
 
-func (p *Problem) GetUrl() string {
+func (p *Problem) GetOriginalUrl() string {
 	source, ok := ProblemUrlFormSources[problemSource(p.Source)]
 	if ok {
 		return fmt.Sprintf(string(source), string(p.Name))

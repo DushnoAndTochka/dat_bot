@@ -2,12 +2,9 @@ package bot
 
 import (
 	"context"
-	"errors"
 	"os"
-	"os/signal"
-	"syscall"
+	"sync"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mymmrac/telego"
 
 	th "github.com/mymmrac/telego/telegohandler"
@@ -18,15 +15,15 @@ import (
 	"github.com/artem-telnov/dushno_and_tochka_bot/internal/pkg/log"
 )
 
-func New() (*Bot, error) {
+// Инициализатор Бота. Ожидает что в переменных окржения имеет переменная TELEGRAM_BOT_TOKEN,
+// в которой указан токен. Если данной переменной окружения не будет, то вызовется паника
+func New() (*telego.Bot, error) {
+	logger := log.GetLogger()
 	telegramBotToken := os.Getenv("TELEGRAM_BOT_TOKEN")
 
 	if telegramBotToken == "" {
-		err := errors.New("Telegram Bot Token not found. Please specify TELEGRAM_BOT_TOKEN env.")
-		return nil, err
+		logger.Fatal("Telegram Bot Token not found. Please specify TELEGRAM_BOT_TOKEN env.")
 	}
-
-	logger := log.GetLogger()
 
 	newApiBot, err := telego.NewBot(telegramBotToken, telego.WithLogger(logger))
 
@@ -34,52 +31,40 @@ func New() (*Bot, error) {
 		return nil, err
 	}
 
-	dbConnection := dbconnection.GetPoolConnections()
-	botHandler := &Bot{
-		bot:          newApiBot,
-		dbConnection: dbConnection,
-	}
-
-	return botHandler, nil
+	return newApiBot, nil
 
 }
 
-type Bot struct {
-	bot          *telego.Bot
-	dbConnection *pgxpool.Pool
-}
-
-func (b *Bot) StartPolling(cancel context.CancelFunc) {
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+func StartPolling(bot *telego.Bot, ctx context.Context) {
 	logger := log.GetLogger()
-	done := make(chan struct{}, 1)
+	var wg sync.WaitGroup
 
-	updates, _ := b.bot.UpdatesViaLongPolling(nil)
+	updates, _ := bot.UpdatesViaLongPolling(nil)
 	dbpool := dbconnection.GetPoolConnections()
 
-	bh, _ := th.NewBotHandler(b.bot, updates)
+	bh, _ := th.NewBotHandler(bot, updates)
+	wg.Add(1)
 
-	go func() {
-		<-sigs
+	go func(wg *sync.WaitGroup) {
+		<-ctx.Done()
 
 		logger.Info("Polling is stoping")
-		b.bot.StopLongPolling()
+		bot.StopLongPolling()
 		bh.Stop()
 
 		logger.Info("Long polling stoped")
-		cancel()
 
-		done <- struct{}{}
-	}()
+		wg.Done()
+	}(&wg)
 
 	defer bh.Stop()
-	defer b.bot.StopLongPolling()
+	defer bot.StopLongPolling()
 	defer dbpool.Close()
 
 	bh.Use(
 		func(next th.Handler) th.Handler {
 			return func(bot *telego.Bot, update telego.Update) {
+				// midleware для оборачивания обработки в горутину.
 				go func() {
 					defer func() {
 						if r := recover(); r != nil {
@@ -92,6 +77,14 @@ func (b *Bot) StartPolling(cancel context.CancelFunc) {
 		},
 	)
 
+	initialHandlers(bh)
+	bh.Start()
+	wg.Wait()
+	logger.Info("Long polling is done")
+}
+
+// инициализируем все обработчики
+func initialHandlers(bh *th.BotHandler) {
 	bh.Handle(eventprocessor.ProcessStartComand, th.CommandEqual("start"))
 	bh.Handle(eventprocessor.ProcessHelpComand, th.CommandEqual("help"))
 	bh.Handle(eventprocessor.ProcessProposeProblemFromMessage, th.CommandEqual("suggest_problem"))
@@ -100,9 +93,4 @@ func (b *Bot) StartPolling(cancel context.CancelFunc) {
 	bh.Handle(eventprocessor.ProcessProposeProblemFromMessage, th.TextEqual("Хочу предложить задачу"))
 	bh.Handle(eventprocessor.ProcessGetLinkFromReply, custompredicates.IsNewProposeTask)
 	bh.Handle(eventprocessor.ProcessNotSupportedComandsComand, th.AnyCommand())
-
-	bh.Start()
-
-	<-done
-	logger.Info("Long polling is done")
 }

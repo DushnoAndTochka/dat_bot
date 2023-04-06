@@ -35,6 +35,7 @@ func (s *Store) UserCreate(u *models.User) error {
 	return nil
 }
 
+// Ищет или создает.
 func (s *Store) UserGetOrCreate(u *models.User) error {
 	logger := log.GetLogger()
 	err := s.UserGetByTgID(u)
