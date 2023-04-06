@@ -13,6 +13,7 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// Точка запуска бота. Инициализирует все основные куски проекта и вызвывает бот поллинг.
 func main() {
 	time.Local = time.UTC
 	logger := log.GetLogger()
@@ -23,7 +24,7 @@ func main() {
 		logger.Error(err)
 	}
 
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, _ := signal.NotifyContext(context.Background(), os.Interrupt)
 
 	storages.NewStorage(ctx)
 
@@ -34,11 +35,11 @@ func main() {
 
 	logger.Info("All Rigth!")
 
-	bot, err := bot.New()
+	tgBot, err := bot.New()
 
 	if err != nil {
 		logger.Fatal(err)
 	}
 
-	bot.StartPolling(cancel)
+	bot.StartPolling(tgBot, ctx)
 }
