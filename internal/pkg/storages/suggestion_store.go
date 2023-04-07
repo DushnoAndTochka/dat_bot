@@ -11,15 +11,16 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// поиск предложения по user_id и problem_id
-var selectSuggestion = `
+const (
+	// поиск предложения по user_id и problem_id
+	selectSuggestion = `
 SELECT id, user_id, problem_id
 FROM suggestions
 WHERE user_id = $1 and problem_id = $2;
 `
 
-// поиск всех предложений пользователя
-var selectUserSuggestions = `
+	// поиск всех предложений пользователя
+	selectUserSuggestions = `
 SELECT suggestions.problem_id, 
        problems.name,
 	   problems.source,
@@ -29,8 +30,8 @@ JOIN problems ON suggestions.problem_id = problems.id
 WHERE user_id = $1;
 `
 
-// поиск топ 10 предложений
-var selectTOPSuggestions = `
+	// поиск топ 10 предложений
+	selectTOPSuggestions = `
 SELECT suggestions.problem_id, 
        count(suggestions.problem_id) as countSuggestions, 
        problems.name,
@@ -43,17 +44,18 @@ ORDER BY countSuggestions DESC
 LIMIT 10;
 `
 
-// Создание нового предложения
-var insertSuggestion = `
+	// Создание нового предложения
+	insertSuggestion = `
 INSERT INTO suggestions (user_id, problem_id) VALUES ($1, $2);
 `
 
-// Обновление предложения
-var updateSuggestion = `
+	// Обновление предложения
+	updateSuggestion = `
 UPDATE suggestions
 SET problem_id = $2
 WHERE id = $1;
 `
+)
 
 func (s *Store) SuggestionGet(suggestion *models.Suggestion) error {
 	row := s.conn.QueryRow(s.ctx, selectSuggestion, suggestion.UserID, suggestion.ProblemID)
