@@ -49,10 +49,11 @@ var EnableStatuses = []problemStatus{OpenStatus, CloseStatus}
 type ProblemName string
 
 type Problem struct {
-	ID     uuid.UUID
-	Name   ProblemName
-	Source problemSource
-	Status problemStatus
+	ID               uuid.UUID
+	Name             ProblemName
+	Source           problemSource
+	Status           problemStatus
+	CountSuggestions CountSuggestions
 }
 
 func NewProblem(id uuid.UUID, name string, source string, status string) (*Problem, error) {

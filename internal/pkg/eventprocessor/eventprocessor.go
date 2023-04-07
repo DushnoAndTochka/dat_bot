@@ -137,7 +137,7 @@ func ProcessShowAllProposeProblems(bot *telego.Bot, update telego.Update) {
 
 		var problemUrl string
 
-		for problem, count := range suggstions {
+		for _, problem := range suggstions {
 			problemUrl = problem.GetOriginalUrl()
 			// собираем каждую строчку отдельно
 			entityMessages = append(entityMessages, tu.Entity("\n- Задача "))
@@ -146,7 +146,7 @@ func ProcessShowAllProposeProblems(bot *telego.Bot, update telego.Update) {
 			} else {
 				entityMessages = append(entityMessages, tu.Entity(string(problem.Name)))
 			}
-			entityMessages = append(entityMessages, tu.Entity(fmt.Sprintf(" была предложена %v раз.\n", int(*count))))
+			entityMessages = append(entityMessages, tu.Entity(fmt.Sprintf(" была предложена %v раз.\n", int(problem.CountSuggestions))))
 		}
 		// скармливаем собранный список сообщений и формируем целостное сообщение.
 		botMessage = tu.MessageWithEntities(tu.ID(update.Message.Chat.ID), entityMessages...)

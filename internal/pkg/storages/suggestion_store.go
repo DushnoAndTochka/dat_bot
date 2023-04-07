@@ -99,7 +99,7 @@ func (s *Store) SuggestionUpdate(suggestion *models.Suggestion) error {
 	return nil
 }
 
-func (s *Store) GetTopSuggestions() (map[*models.Problem]*models.CountSuggestions, error) {
+func (s *Store) GetTopSuggestions() ([]*models.Problem, error) {
 	logger := log.GetLogger()
 	problemStatus := models.OpenStatus
 	rows, err := s.conn.Query(s.ctx, selectTOPSuggestions, problemStatus)
@@ -108,15 +108,15 @@ func (s *Store) GetTopSuggestions() (map[*models.Problem]*models.CountSuggestion
 		return nil, err
 	}
 
-	topSuggestions := make(map[*models.Problem]*models.CountSuggestions)
+	var topSuggestions []*models.Problem
 
 	var problemID *uuid.UUID
 	var problemName string
 	var problemSource string
 	var problem *models.Problem
+	var countSuggestions *models.CountSuggestions
 
 	for rows.Next() {
-		var countSuggestions *models.CountSuggestions
 
 		err = rows.Scan(&problemID, &countSuggestions, &problemName, &problemSource)
 		logger.Debug("GetTopSuggestions: Result: ", countSuggestions, " ", *problemID, " ", problemName, " ", problemSource, " ", string(problemStatus))
@@ -124,11 +124,12 @@ func (s *Store) GetTopSuggestions() (map[*models.Problem]*models.CountSuggestion
 			logger.Debug("GetTopSuggestions: ", err)
 		}
 		problem, err = models.NewProblem(*problemID, problemName, problemSource, string(problemStatus))
+		problem.CountSuggestions = *countSuggestions
 
 		if err != nil {
 			logger.Debug("GetTopSuggestions: ", err)
 		}
-		topSuggestions[problem] = countSuggestions
+		topSuggestions = append(topSuggestions, problem)
 	}
 
 	return topSuggestions, err
