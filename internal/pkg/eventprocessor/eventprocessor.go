@@ -146,7 +146,7 @@ func ProcessShowAllProposeProblems(bot *telego.Bot, update telego.Update) {
 			} else {
 				entityMessages = append(entityMessages, tu.Entity(string(problem.Name)))
 			}
-			entityMessages = append(entityMessages, tu.Entity(fmt.Sprintf(" была предложена %v раз.\n", int(*&problem.CountSuggestions))))
+			entityMessages = append(entityMessages, tu.Entity(fmt.Sprintf(" была предложена %v раз.\n", int(problem.CountSuggestions))))
 		}
 		// скармливаем собранный список сообщений и формируем целостное сообщение.
 		botMessage = tu.MessageWithEntities(tu.ID(update.Message.Chat.ID), entityMessages...)
