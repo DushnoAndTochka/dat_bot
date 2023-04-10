@@ -124,7 +124,7 @@ func (s *Store) GetTopSuggestions() ([]*models.Problem, error) {
 	var countSuggestions *models.CountSuggestions
 
 	for rows.Next() {
-
+  
 		err = rows.Scan(&problemID, &countSuggestions, &problemName, &problemSource)
 		logger.Debug("GetTopSuggestions: Result: ", countSuggestions, " ", *problemID, " ", problemName, " ", problemSource, " ", string(problemStatus))
 		if err != nil {

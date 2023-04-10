@@ -84,6 +84,7 @@ func NewProblem(id uuid.UUID, name string, source string, status string) (*Probl
 	}, nil
 }
 
+
 // инициализаци проблемы из представленного URL. Проверяет валидность урла.
 func NewProblemFromUrl(url string) (*Problem, error) {
 	var err error

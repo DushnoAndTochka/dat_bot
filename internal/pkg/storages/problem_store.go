@@ -44,6 +44,7 @@ func (s *Store) ProblemCreate(problem *models.Problem) error {
 	return nil
 }
 
+
 // Метод пытается найти объект в бд. Если не получилось, то создает новый объект.
 func (s *Store) ProblemGetOrCreate(problem *models.Problem) error {
 	logger := log.GetLogger()
