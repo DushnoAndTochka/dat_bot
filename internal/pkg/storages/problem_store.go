@@ -21,6 +21,11 @@ WHERE name = $1 and source = $2;
 	insertProblem = `
 INSERT INTO problems (name, source, status) VALUES ($1, $2, $3);
 `
+
+	// Обновление статуса проблемы
+	updateProblemStatus = `
+UPDATE problems SET status = $2 WHERE id = $1;
+`
 )
 
 func (s *Store) ProblemGet(problem *models.Problem) error {

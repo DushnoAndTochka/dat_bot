@@ -11,7 +11,7 @@ import (
 
 // регексы для матчинга урлов.
 var (
-	LeetCodeRegexProblemUrl = regexp.MustCompile(`^https:\/\/leetcode.com\/problems\/(?P<problem_name>[a-z\-]*)\/?$`)
+	LeetCodeRegexProblemUrl = regexp.MustCompile(`^https:\/\/leetcode.com\/problems\/(?P<problem_name>[a-z\-0-9]*)\/?$`)
 )
 
 // типы урлов, которые могут быть обработанны и из них будут получены названия проблем

@@ -33,18 +33,20 @@ func (s *Solution) GetURLSolutionDESC() (string, error) {
 	}
 }
 
-func (s *Solution) ScanProblemRow(row pgx.Row) error {
+func (s *Solution) ScanRow(row pgx.Row) error {
 	return row.Scan(
 		&s.ID,
 		&s.Name,
 		&s.ProblemID,
+		&s.IsSolved,
 	)
 }
 
-func (s *Solution) ScanProblemRows(rows pgx.Rows) error {
+func (s *Solution) ScanRows(rows pgx.Rows) error {
 	return rows.Scan(
 		&s.ID,
 		&s.Name,
 		&s.ProblemID,
+		&s.IsSolved,
 	)
 }

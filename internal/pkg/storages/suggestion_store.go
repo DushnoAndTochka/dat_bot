@@ -55,6 +55,11 @@ UPDATE suggestions
 SET problem_id = $2
 WHERE id = $1;
 `
+
+	// Удаление предложений связанных с конкретной проблемой
+	deleteSuggestionByProblem = `
+DELETE FROM suggestions WHERE problem_id = $1;	
+`
 )
 
 func (s *Store) SuggestionGet(suggestion *models.Suggestion) error {
