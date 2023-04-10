@@ -10,8 +10,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// объект синглтона для пула конекторов
 var pgPoolConnection *pgxpool.Pool
 
+// создает пул коннекторов.
+// Требуется что бы были объявлены переменные окружения
+// POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, DB_PORT, DB_HOST
 func newPoolConnections() {
 	logger := log.GetLogger()
 	dbUser := os.Getenv("POSTGRES_USER")
@@ -37,6 +41,7 @@ func newPoolConnections() {
 	pgPoolConnection = dbpool
 }
 
+// инициализирует один раз пул конекторов и перекладывает его в синглтон
 func GetPoolConnections() *pgxpool.Pool {
 	var once sync.Once
 	once.Do(newPoolConnections)

@@ -6,9 +6,6 @@ import (
 	"github.com/mymmrac/telego"
 )
 
-const UserSelectValues = "id, name, tg_id"
-const UserInsertValues = "name, tg_id"
-
 type User struct {
 	ID   uuid.UUID
 	TgID int64

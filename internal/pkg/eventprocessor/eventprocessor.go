@@ -3,6 +3,8 @@ package eventprocessor
 import (
 	"fmt"
 
+	"github.com/artem-telnov/dushno_and_tochka_bot/internal/pkg/customerrors"
+	"github.com/artem-telnov/dushno_and_tochka_bot/internal/pkg/custompredicates"
 	"github.com/artem-telnov/dushno_and_tochka_bot/internal/pkg/log"
 	"github.com/artem-telnov/dushno_and_tochka_bot/internal/pkg/models"
 	"github.com/artem-telnov/dushno_and_tochka_bot/internal/pkg/storages"
@@ -10,6 +12,7 @@ import (
 	tu "github.com/mymmrac/telego/telegoutil"
 )
 
+// Обработчик команды "/start". Пишет приветственное сообщение и добавляет новых пользователей в БД.
 func ProcessStartComand(bot *telego.Bot, update telego.Update) {
 
 	storage := storages.GetStorage()
@@ -31,6 +34,7 @@ func ProcessStartComand(bot *telego.Bot, update telego.Update) {
 	_, _ = bot.SendMessage(message)
 }
 
+// Обработчик команды "/help". Пишет информационное сообщение о возможностях бота.
 func ProcessHelpComand(bot *telego.Bot, update telego.Update) {
 
 	message := tu.Message(
@@ -46,6 +50,7 @@ func ProcessHelpComand(bot *telego.Bot, update telego.Update) {
 	_, _ = bot.SendMessage(message)
 }
 
+// Обработчик не известных команд.
 func ProcessNotSupportedComandsComand(bot *telego.Bot, update telego.Update) {
 	message := tu.Message(
 		tu.ID(update.Message.Chat.ID),
@@ -55,6 +60,7 @@ func ProcessNotSupportedComandsComand(bot *telego.Bot, update telego.Update) {
 	_, _ = bot.SendMessage(message)
 }
 
+// Обработчик предложенной задачи. Вычитывает ссылку из сообщения, валидирует ее и добавляет в БД.
 func ProcessGetLinkFromReply(bot *telego.Bot, update telego.Update) {
 	logger := log.GetLogger()
 	answer := update.Message.Text
@@ -83,21 +89,43 @@ func ProcessGetLinkFromReply(bot *telego.Bot, update telego.Update) {
 		return
 	}
 
-	suggection := models.NewSuggestion(user, problem)
+	if problem.Status == models.CloseStatus {
+		solution, err := storage.SolutionGetByProblemId(problem.ID)
+		if err != nil {
+			sendErrorMessage(bot, &update, err)
+			return
+		}
 
-	if err = storage.SuggestionCheckOrCreate(suggection); err != nil {
-		logger.Debug("ProcessGetLinkFromReply: SuggestionCheckOrCreate failed: %w", err)
-		sendErrorMessage(bot, &update, err)
-		return
+		solutionsURL, err := solution.GetURLSolutionDESC()
+		entityMessages := []tu.MessageEntityCollection{
+			tu.Entity("Данная задача уже была разобрана."),
+			tu.Entity("\n\nОписание проблемы.").TextLink(solution.GetURLProblemDESC()),
+		}
+
+		if err == nil {
+			entityMessages = append(entityMessages, tu.Entity("\n\nОписание решения.").TextLink(solutionsURL))
+		}
+
+		message = tu.MessageWithEntities(tu.ID(update.Message.Chat.ID), entityMessages...)
+	} else {
+		suggection := models.NewSuggestion(user, problem)
+
+		if err = storage.SuggestionCheckOrCreate(suggection); err != nil {
+			logger.Debug("ProcessGetLinkFromReply: SuggestionCheckOrCreate failed: %w", err)
+			sendErrorMessage(bot, &update, err)
+			return
+		}
+
+		message = tu.Message(
+			tu.ID(update.Message.Chat.ID),
+			"Спасибо!",
+		)
 	}
 
-	message = tu.Message(
-		tu.ID(update.Message.Chat.ID),
-		"Спасибо",
-	)
 	_, _ = bot.SendMessage(message)
 }
 
+// Обработчик команды "/show_top_suggestions". Выбирает ТОП предложений из бд и формирует сообщение.
 func ProcessShowAllProposeProblems(bot *telego.Bot, update telego.Update) {
 
 	var message string
@@ -122,21 +150,26 @@ func ProcessShowAllProposeProblems(bot *telego.Bot, update telego.Update) {
 			`
 		botMessage = tu.Message(tu.ID(update.Message.Chat.ID), message)
 	} else {
+		// Формируем сообщение с ссылками на Problems.
+
+		// инитим список сообщений
 		var entityMessages []tu.MessageEntityCollection
 		entityMessages = append(entityMessages, tu.Entity("ТОП предложениями являются:\n"))
 
 		var problemUrl string
 
-		for problem, count := range suggstions {
-			problemUrl = problem.GetUrl()
+		for _, problem := range suggstions {
+			problemUrl = problem.GetOriginalUrl()
+			// собираем каждую строчку отдельно
 			entityMessages = append(entityMessages, tu.Entity("\n- Задача "))
 			if problemUrl != "" {
 				entityMessages = append(entityMessages, tu.Entity(string(problem.Name)).TextLink(problemUrl))
 			} else {
 				entityMessages = append(entityMessages, tu.Entity(string(problem.Name)))
 			}
-			entityMessages = append(entityMessages, tu.Entity(fmt.Sprintf(" была предложена %v раз.\n", int(*count))))
+			entityMessages = append(entityMessages, tu.Entity(fmt.Sprintf(" была предложена %v раз.\n", int(problem.CountSuggestions))))
 		}
+		// скармливаем собранный список сообщений и формируем целостное сообщение.
 		botMessage = tu.MessageWithEntities(tu.ID(update.Message.Chat.ID), entityMessages...)
 
 	}
@@ -144,6 +177,7 @@ func ProcessShowAllProposeProblems(bot *telego.Bot, update telego.Update) {
 	_, _ = bot.SendMessage(botMessage)
 }
 
+// Обработчик команды "/show_my_suggestion". Показывает предложения пользователя.
 func ProcessShowMyProposeProblem(bot *telego.Bot, update telego.Update) {
 	var botMessage *telego.SendMessageParams
 
@@ -165,6 +199,7 @@ func ProcessShowMyProposeProblem(bot *telego.Bot, update telego.Update) {
 	}
 
 	if userSuggestions != nil {
+		// формируем итоговое сообщение с ссылками.
 		var entityMessages []tu.MessageEntityCollection
 		entityMessages = append(entityMessages, tu.Entity("Задачи, которые вы предложили и они еще не были разобраны:\n"))
 
@@ -173,7 +208,7 @@ func ProcessShowMyProposeProblem(bot *telego.Bot, update telego.Update) {
 
 		for i := range userSuggestions {
 			problem = userSuggestions[i]
-			problemUrl = problem.GetUrl()
+			problemUrl = problem.GetOriginalUrl()
 			entityMessages = append(entityMessages, tu.Entity("\n- "))
 			if problemUrl != "" {
 				entityMessages = append(entityMessages, tu.Entity(string(problem.Name)).TextLink(problemUrl))
@@ -194,19 +229,22 @@ func ProcessShowMyProposeProblem(bot *telego.Bot, update telego.Update) {
 	_, _ = bot.SendMessage(botMessage)
 }
 
+// Обработчик команды "/suggest_problem". Формирует сообщение с просьюой предоставить ссылку на Problem
 func ProcessProposeProblemFromMessage(bot *telego.Bot, update telego.Update) {
 	message := tu.Message(
 		tu.ID(update.Message.Chat.ID),
-		"Укажите ссылку на задачу.",
+		string(custompredicates.GetMeProblemLink),
 	).WithReplyMarkup(tu.ForceReply())
 
 	_, _ = bot.SendMessage(message)
 }
 
-func sendErrorMessage(bot *telego.Bot, update *telego.Update, err models.ModelError) {
+// Обработчик ошибок и отправка стандартного сообщения об ошибке.
+// Позволяет добавлять кастомные ошибки models.ModelError.
+func sendErrorMessage(bot *telego.Bot, update *telego.Update, err customerrors.CustomError) {
 	logger := log.GetLogger()
 	logger.Error(err)
-	msg, ok := models.ModelErrors[err]
+	msg, ok := customerrors.CustomErrors[err]
 
 	if !ok {
 		msg = "Почему-то не получилось посмотреть информацию... Попробуйте позже."

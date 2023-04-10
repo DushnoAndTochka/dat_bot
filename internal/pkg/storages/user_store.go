@@ -10,15 +10,17 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-var selectUser = `
+const (
+	selectUser = `
 SELECT id, name, tg_id
 FROM users
 WHERE tg_id = $1;
 `
 
-var insertUser = `
+	insertUser = `
 INSERT INTO users (name, tg_id) VALUES ($1, $2);
 `
+)
 
 func (s *Store) UserGetByTgID(u *models.User) error {
 	row := s.conn.QueryRow(s.ctx, selectUser, u.TgID)
@@ -35,6 +37,7 @@ func (s *Store) UserCreate(u *models.User) error {
 	return nil
 }
 
+// Ищет или создает.
 func (s *Store) UserGetOrCreate(u *models.User) error {
 	logger := log.GetLogger()
 	err := s.UserGetByTgID(u)

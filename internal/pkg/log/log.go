@@ -8,8 +8,11 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+// Синглтон логгера
 var logger *zap.SugaredLogger = nil
 
+// Инициализатор логгера.
+// Если указать LOG_PATH в переменных окружения, то путь будет использоваться из нее.
 func newLogger() {
 	logPath := os.Getenv("LOG_PATH")
 	if logPath == "" {
@@ -50,6 +53,8 @@ func newLogger() {
 	logger = l.Sugar()
 }
 
+// Позволяет инициализировать один раз Sindleton логгера.
+// После это возвращает инстанс синглтон логгера.
 func GetLogger() *zap.SugaredLogger {
 	var once sync.Once
 	once.Do(newLogger)

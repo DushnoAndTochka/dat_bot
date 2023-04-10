@@ -4,19 +4,23 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/artem-telnov/dushno_and_tochka_bot/internal/pkg/customerrors"
 	"github.com/artem-telnov/dushno_and_tochka_bot/internal/pkg/log"
 	"github.com/artem-telnov/dushno_and_tochka_bot/internal/pkg/models"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
-var selectSuggestion = `
+const (
+	// поиск предложения по user_id и problem_id
+	selectSuggestion = `
 SELECT id, user_id, problem_id
 FROM suggestions
 WHERE user_id = $1 and problem_id = $2;
 `
 
-var selectUserSuggestions = `
+	// поиск всех предложений пользователя
+	selectUserSuggestions = `
 SELECT suggestions.problem_id, 
        problems.name,
 	   problems.source,
@@ -26,7 +30,8 @@ JOIN problems ON suggestions.problem_id = problems.id
 WHERE user_id = $1;
 `
 
-var selectTOPSuggestions = `
+	// поиск топ 10 предложений
+	selectTOPSuggestions = `
 SELECT suggestions.problem_id, 
        count(suggestions.problem_id) as countSuggestions, 
        problems.name,
@@ -35,19 +40,27 @@ FROM suggestions
 JOIN problems ON suggestions.problem_id = problems.id
 WHERE problems.status = $1
 GROUP BY suggestions.problem_id, problems.name, problems.source
-ORDER BY countSuggestions
+ORDER BY countSuggestions DESC
 LIMIT 10;
 `
 
-var insertSuggestion = `
+	// Создание нового предложения
+	insertSuggestion = `
 INSERT INTO suggestions (user_id, problem_id) VALUES ($1, $2);
 `
 
-var updateSuggestion = `
+	// Обновление предложения
+	updateSuggestion = `
 UPDATE suggestions
 SET problem_id = $2
 WHERE id = $1;
 `
+
+	// Удаление предложений связанных с конкретной проблемой
+	deleteSuggestionByProblem = `
+DELETE FROM suggestions WHERE problem_id = $1;	
+`
+)
 
 func (s *Store) SuggestionGet(suggestion *models.Suggestion) error {
 	row := s.conn.QueryRow(s.ctx, selectSuggestion, suggestion.UserID, suggestion.ProblemID)
@@ -65,6 +78,7 @@ func (s *Store) SuggestionCreate(suggestion *models.Suggestion) error {
 	return nil
 }
 
+// Проверяет наличие Suggestion. Если он есть, то ничего не делает, иначе создает новое предложение.
 func (s *Store) SuggestionCheckOrCreate(suggestion *models.Suggestion) error {
 	logger := log.GetLogger()
 	err := s.SuggestionGet(suggestion)
@@ -78,7 +92,7 @@ func (s *Store) SuggestionCheckOrCreate(suggestion *models.Suggestion) error {
 		err = s.SuggestionGet(suggestion)
 	} else if suggestion.ID != uuid.Nil {
 		logger.Info("SuggestionCheckOrCreate: Is not uniq suggestion.")
-		return models.ErrNotUniqSuggestion
+		return customerrors.ErrNotUniqSuggestion
 	}
 
 	return err
@@ -92,7 +106,7 @@ func (s *Store) SuggestionUpdate(suggestion *models.Suggestion) error {
 	return nil
 }
 
-func (s *Store) GetTopSuggestions() (map[*models.Problem]*models.CountSuggestions, error) {
+func (s *Store) GetTopSuggestions() ([]*models.Problem, error) {
 	logger := log.GetLogger()
 	problemStatus := models.OpenStatus
 	rows, err := s.conn.Query(s.ctx, selectTOPSuggestions, problemStatus)
@@ -101,27 +115,28 @@ func (s *Store) GetTopSuggestions() (map[*models.Problem]*models.CountSuggestion
 		return nil, err
 	}
 
-	topSuggestions := make(map[*models.Problem]*models.CountSuggestions)
+	var topSuggestions []*models.Problem
 
 	var problemID *uuid.UUID
 	var problemName string
 	var problemSource string
 	var problem *models.Problem
+	var countSuggestions *models.CountSuggestions
 
 	for rows.Next() {
-		var countSuggestions *models.CountSuggestions
-
+  
 		err = rows.Scan(&problemID, &countSuggestions, &problemName, &problemSource)
 		logger.Debug("GetTopSuggestions: Result: ", countSuggestions, " ", *problemID, " ", problemName, " ", problemSource, " ", string(problemStatus))
 		if err != nil {
 			logger.Debug("GetTopSuggestions: ", err)
 		}
 		problem, err = models.NewProblem(*problemID, problemName, problemSource, string(problemStatus))
+		problem.CountSuggestions = *countSuggestions
 
 		if err != nil {
 			logger.Debug("GetTopSuggestions: ", err)
 		}
-		topSuggestions[problem] = countSuggestions
+		topSuggestions = append(topSuggestions, problem)
 	}
 
 	return topSuggestions, err

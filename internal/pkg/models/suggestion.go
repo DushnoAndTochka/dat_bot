@@ -5,9 +5,6 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-const SuggestionSelectValues = "id, user_id, problem_id"
-const SuggestionInsertValues = "user_id, problem_id"
-
 type CountSuggestions int
 
 type Suggestion struct {
