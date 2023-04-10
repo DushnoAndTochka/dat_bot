@@ -8,24 +8,24 @@ import (
 	"github.com/artem-telnov/dushno_and_tochka_bot/internal/pkg/storages"
 )
 
-func SyncGithubSolutions() error {
+func SyncGithubSolutions() {
 	storage := storages.GetStorage()
 	logger := log.GetLogger()
 	cli := clients.GetClient()
 
 	githubSolutions, err := cli.GetSolutionsList()
 	if err != nil {
-		return err
+		logger.Error("GithubService GetSolutionsList failed: %w", err)
+		return
 	}
 
 	solutions, err := storage.SolutionsGetAll()
 	if err != nil {
 		logger.Error("GithubService SolutionsGetAll failed: %w", err)
-		return err
+		return
 	}
 
 	processGithubSolutions(githubSolutions, solutions)
-	return nil
 }
 
 func processGithubSolutions(
@@ -46,7 +46,10 @@ func processGithubSolutions(
 				continue
 			} else {
 				knownSolution.IsSolved = githuSolution.IsSolvedProblem
-				storage.SolutionUpdateOrCreate(knownSolution)
+				err := storage.SolutionUpdateOrCreate(knownSolution)
+				if err != nil {
+					logger.Error("GithubService SyncGithub: Fail to SolutionUpdateOrCreate: %w", err)
+				}
 			}
 		} else {
 			problem, err := models.NewProblemFromUrl(githuSolution.ProblemOriginUrl)
@@ -64,7 +67,10 @@ func processGithubSolutions(
 				IsSolved:  githuSolution.IsSolvedProblem,
 				ProblemID: problem.ID,
 			}
-			storage.SolutionUpdateOrCreate(knownSolution)
+			err = storage.SolutionUpdateOrCreate(knownSolution)
+			if err != nil {
+				logger.Error("GithubService SyncGithub: Fail to SolutionUpdateOrCreate: %w", err)
+			}
 		}
 	}
 }

@@ -69,7 +69,7 @@ func (s *Store) SolutionUpdateOrCreate(solution *models.Solution) error {
 	tx, err := s.conn.Begin(s.ctx)
 
 	if err != nil {
-		tx.Rollback(s.ctx)
+		_ = tx.Rollback(s.ctx)
 		logger.Error(err)
 		return err
 	}
@@ -78,14 +78,14 @@ func (s *Store) SolutionUpdateOrCreate(solution *models.Solution) error {
 		_, err = tx.Exec(s.ctx, insertSolution, solution.Name, solution.ProblemID, solution.IsSolved)
 		if err != nil {
 			logger.Error("SolutionStore CreateOrUpdate CreateSolution is failed: %w", err)
-			tx.Rollback(s.ctx)
+			_ = tx.Rollback(s.ctx)
 			return err
 		}
 	} else {
 		_, err = tx.Exec(s.ctx, updateSolutionStatus, solution.ID, solution.IsSolved)
 		if err != nil {
 			logger.Error("SolutionStore CreateOrUpdate UpdateSolution is failed: %w", err)
-			tx.Rollback(s.ctx)
+			_ = tx.Rollback(s.ctx)
 			return err
 		}
 	}
@@ -93,16 +93,19 @@ func (s *Store) SolutionUpdateOrCreate(solution *models.Solution) error {
 	_, err = tx.Exec(s.ctx, deleteSuggestionByProblem, solution.ProblemID)
 	if err != nil {
 		logger.Error("SolutionStore CreateOrUpdate DeleteSuggestion is failed: %w", err)
-		tx.Rollback(s.ctx)
+		_ = tx.Rollback(s.ctx)
 		return err
 	}
 
 	_, err = tx.Exec(s.ctx, updateProblemStatus, solution.ProblemID, models.CloseStatus)
 	if err != nil {
 		logger.Error("SolutionStore CreateOrUpdate UpdateProblemStatus is failed: %w", err)
-		tx.Rollback(s.ctx)
+		_ = tx.Rollback(s.ctx)
 		return err
 	}
-	tx.Commit(s.ctx)
+	err = tx.Commit(s.ctx)
+	if err != nil {
+		logger.Error("SolutionStore CreateOrUpdate Commit is failed: %w", err)
+	}
 	return nil
 }
