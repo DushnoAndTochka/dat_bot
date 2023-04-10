@@ -12,7 +12,7 @@ services:
   dat_bot:
     build: .
     image: baradabacka/dushno_and_tochka_bot:latest
-    restart: always
+    # restart: always
     volumes:
       - log_volumes:/var/log/
     depends_on:

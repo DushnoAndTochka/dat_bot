@@ -89,18 +89,39 @@ func ProcessGetLinkFromReply(bot *telego.Bot, update telego.Update) {
 		return
 	}
 
-	suggection := models.NewSuggestion(user, problem)
+	if problem.Status == models.CloseStatus {
+		solution, err := storage.SolutionGetByProblemId(problem.ID)
+		if err != nil {
+			sendErrorMessage(bot, &update, err)
+			return
+		}
 
-	if err = storage.SuggestionCheckOrCreate(suggection); err != nil {
-		logger.Debug("ProcessGetLinkFromReply: SuggestionCheckOrCreate failed: %w", err)
-		sendErrorMessage(bot, &update, err)
-		return
+		solutionsURL, err := solution.GetURLSolutionDESC()
+		entityMessages := []tu.MessageEntityCollection{
+			tu.Entity("Данная задача уже была разобрана."),
+			tu.Entity("\n\nОписание проблемы.").TextLink(solution.GetURLProblemDESC()),
+		}
+
+		if err == nil {
+			entityMessages = append(entityMessages, tu.Entity("\n\nОписание решения.").TextLink(solutionsURL))
+		}
+
+		message = tu.MessageWithEntities(tu.ID(update.Message.Chat.ID), entityMessages...)
+	} else {
+		suggection := models.NewSuggestion(user, problem)
+
+		if err = storage.SuggestionCheckOrCreate(suggection); err != nil {
+			logger.Debug("ProcessGetLinkFromReply: SuggestionCheckOrCreate failed: %w", err)
+			sendErrorMessage(bot, &update, err)
+			return
+		}
+
+		message = tu.Message(
+			tu.ID(update.Message.Chat.ID),
+			"Спасибо!",
+		)
 	}
 
-	message = tu.Message(
-		tu.ID(update.Message.Chat.ID),
-		"Спасибо",
-	)
 	_, _ = bot.SendMessage(message)
 }
 

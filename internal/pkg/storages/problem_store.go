@@ -9,17 +9,24 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// поиск проблем по имени и ресурсу.
-var selectProblem = `
+const (
+	// поиск проблем по имени и ресурсу.
+	selectProblem = `
 SELECT id, name, source, status
 FROM problems
 WHERE name = $1 and source = $2;
 `
 
-// Создание новой проблемы
-var insertProblem = `
+	// Создание новой проблемы
+	insertProblem = `
 INSERT INTO problems (name, source, status) VALUES ($1, $2, $3);
 `
+
+	// Обновление статуса проблемы
+	updateProblemStatus = `
+UPDATE problems SET status = $2 WHERE id = $1;
+`
+)
 
 func (s *Store) ProblemGet(problem *models.Problem) error {
 	row := s.conn.QueryRow(s.ctx, selectProblem, problem.Name, problem.Source)

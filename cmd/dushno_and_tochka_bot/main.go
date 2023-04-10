@@ -7,8 +7,10 @@ import (
 	"time"
 
 	"github.com/artem-telnov/dushno_and_tochka_bot/internal/pkg/bot"
+	"github.com/artem-telnov/dushno_and_tochka_bot/internal/pkg/clients"
 	"github.com/artem-telnov/dushno_and_tochka_bot/internal/pkg/dbconnection"
 	"github.com/artem-telnov/dushno_and_tochka_bot/internal/pkg/log"
+	"github.com/artem-telnov/dushno_and_tochka_bot/internal/pkg/services"
 	"github.com/artem-telnov/dushno_and_tochka_bot/internal/pkg/storages"
 	"github.com/joho/godotenv"
 )
@@ -27,6 +29,7 @@ func main() {
 	ctx, _ := signal.NotifyContext(context.Background(), os.Interrupt)
 
 	storages.NewStorage(ctx)
+	clients.NewClient(ctx)
 
 	pool := dbconnection.GetPoolConnections()
 	if pool == nil {
@@ -34,6 +37,8 @@ func main() {
 	}
 
 	logger.Info("All Rigth!")
+
+	go services.SyncGithubSolutions()
 
 	tgBot, err := bot.New()
 
